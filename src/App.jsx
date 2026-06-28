@@ -120,17 +120,23 @@ export default function App() {
 
   async function togglePausa() {
     try {
+      const resGet = await fetch(`${API}/config`)
+      if (!resGet.ok) return
+      const configActual = await resGet.json()
+
+      const nuevoActivo = !configActual.activo
+
       const res = await fetch(`${API}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          activo: pausado,
-          apertura: '09:00',
-          cierre: '20:00',
-          descanso: false,
-          descanso_inicio: '13:00',
-          descanso_fin: '14:00',
-          saludo_automatico: false,
+          activo: nuevoActivo,
+          apertura: configActual.apertura,
+          cierre: configActual.cierre,
+          descanso: configActual.descanso,
+          descanso_inicio: configActual.descanso_inicio,
+          descanso_fin: configActual.descanso_fin,
+          saludo_automatico: configActual.saludo_automatico,
         }),
       })
       if (res.ok) {
