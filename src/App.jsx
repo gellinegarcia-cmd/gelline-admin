@@ -3,7 +3,7 @@ import './App.css'
 
 const API = 'https://kiosco-ai.onrender.com'
 const PASSWORD = 'gelline2024'
-const REFRESH_INTERVAL = 30000
+const REFRESH_INTERVAL = 120000
 
 const COSTO_INPUT  = 0.000003
 const COSTO_OUTPUT = 0.000015
