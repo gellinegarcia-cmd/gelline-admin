@@ -89,6 +89,7 @@ export default function App() {
       if (resStatus.ok) {
         const d = await resStatus.json()
         setStatus(d)
+        setPausado(!d.activo)
       }
       if (resTx.ok) {
         const d = await resTx.json()
@@ -118,14 +119,28 @@ export default function App() {
   }, [auth, fetchAll])
 
   async function togglePausa() {
-    const next = !pausado
-    setPausado(next)
-    await fetch(`${API}/config`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activo: !next }),
-    })
-    fetchAll()
+    try {
+      const res = await fetch(`${API}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activo: pausado,
+          apertura: '09:00',
+          cierre: '20:00',
+          descanso: false,
+          descanso_inicio: '13:00',
+          descanso_fin: '14:00',
+          saludo_automatico: false,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPausado(!data.activo)
+        await fetchAll()
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   if (!auth) return <Login onLogin={handleLogin} />
