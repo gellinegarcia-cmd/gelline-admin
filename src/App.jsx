@@ -80,6 +80,33 @@ function clasificar(texto) {
   return 'neutral'
 }
 
+function parseDecisionesAdmin(md) {
+  if (!md) return []
+  const lines = md.split('\n')
+  const decisions = []
+  let current = null
+  for (const line of lines) {
+    if (line.startsWith('### ')) {
+      if (current) decisions.push(current)
+      current = { title: line.replace(/^###\s*/, '').trim(), bodyLines: [] }
+    } else if (current) {
+      current.bodyLines.push(line)
+    }
+  }
+  if (current) decisions.push(current)
+  return decisions.map(d => ({
+    title: d.title,
+    body: d.bodyLines.join('\n').trim(),
+  }))
+}
+
+const COLORES_ADMIN = {
+  'Plata que se te escapa hoy':    { border: '#EF4444', bg: '#1C0A0A', pill: { bg: '#7F1D1D', color: '#FCA5A5' } },
+  'Esto se viene repitiendo':      { border: '#F59E0B', bg: '#1C1200', pill: { bg: '#78350F', color: '#FCD34D' } },
+  'Para que no te vuelva a pasar': { border: '#8B5CF6', bg: '#1A0A2E', pill: { bg: '#4C1D95', color: '#C4B5FD' } },
+  'Lo que funcionó':               { border: '#10B981', bg: '#021C0E', pill: { bg: '#064E3B', color: '#6EE7B7' } },
+}
+
 export default function App() {
   const [auth,            setAuth]            = useState(() => sessionStorage.getItem('gelline_admin') === 'true')
   const [tab,             setTab]             = useState('panel')
@@ -411,12 +438,40 @@ export default function App() {
       )}
 
       {!loading && tab === 'decisiones' && (
-        <div style={card}>
-          {decisiones
-            ? <pre style={{ fontSize: 13, color: '#D1D5DB', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{decisiones}</pre>
-            : <div style={{ fontSize: 12, color: '#4B5563' }}>No hay decisiones generadas hoy</div>
-          }
-        </div>
+        <>
+          <div style={{ fontSize: 11, color: '#4B5563', marginBottom: 12 }}>
+            {decisiones ? `Último análisis generado · ${ultimoUpdate ? ultimoUpdate.toLocaleString('es-AR') : '-'}` : ''}
+          </div>
+          {decisiones ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {parseDecisionesAdmin(decisiones).map((dec, i) => {
+                const estilo = COLORES_ADMIN[dec.title] || { border: '#374151', bg: '#161B27', pill: { bg: '#1F2937', color: '#9CA3AF' } }
+                const bodyLimpio = dec.body
+                  .replace(/\*\*Hacé esto:\*\*/g, '')
+                  .replace(/\*\*(.*?)\*\*/g, '$1')
+                  .trim()
+                const partes = bodyLimpio.split('\n\n').filter(Boolean)
+                return (
+                  <div key={i} style={{ background: estilo.bg, border: `0.5px solid ${estilo.border}`, borderLeft: `3px solid ${estilo.border}`, borderRadius: 10, padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#F9FAFB' }}>{dec.title}</span>
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: estilo.pill.bg, color: estilo.pill.color }}>
+                        {i === 0 ? 'Urgente' : i === 1 ? 'Esta semana' : i === 2 ? 'Reflexión' : 'Positivo'}
+                      </span>
+                    </div>
+                    {partes.map((p, j) => (
+                      <p key={j} style={{ fontSize: 12, color: j === 0 ? '#D1D5DB' : '#10B981', lineHeight: 1.6, marginBottom: j < partes.length - 1 ? 6 : 0, fontWeight: j === 1 ? 500 : 400 }}>
+                        {j === 1 ? `→ ${p}` : p}
+                      </p>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: '#4B5563' }}>No hay decisiones generadas hoy</div>
+          )}
+        </>
       )}
     </div>
   )
