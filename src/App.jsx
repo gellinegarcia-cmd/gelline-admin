@@ -9,6 +9,25 @@ const COSTO_INPUT  = 0.000003
 const COSTO_OUTPUT = 0.000015
 const PRESUPUESTO  = 5.00
 
+const SALDO_KEY = 'gelline_saldos'
+
+const DEFAULT_SALDOS = {
+  claude_inicial: 4.52,
+  openai_inicial: 2.98,
+  claude_gastado_acum: 0,
+  openai_gastado_acum: 0,
+}
+
+function getStoredSaldos() {
+  try {
+    return { ...DEFAULT_SALDOS, ...JSON.parse(localStorage.getItem(SALDO_KEY) || '{}') }
+  } catch { return { ...DEFAULT_SALDOS } }
+}
+
+function saveSaldos(s) {
+  localStorage.setItem(SALDO_KEY, JSON.stringify(s))
+}
+
 function Login({ onLogin }) {
   const [pass, setPass] = useState('')
   const [error, setError] = useState(false)
@@ -65,6 +84,8 @@ export default function App() {
   const [auth,            setAuth]            = useState(() => sessionStorage.getItem('gelline_admin') === 'true')
   const [tab,             setTab]             = useState('panel')
   const [status,          setStatus]          = useState(null)
+  const [saldos,          setSaldos]          = useState(getStoredSaldos)
+  const [editandoSaldos,  setEditandoSaldos]  = useState(false)
   const [transcripciones, setTranscripciones] = useState([])
   const [decisiones,      setDecisiones]      = useState(null)
   const [tokensHoy,       setTokensHoy]       = useState(0)
@@ -98,6 +119,16 @@ export default function App() {
         const tokens_est = Math.round(chars / 4)
         setTokensHoy(tokens_est)
         setGastoHoy(parseFloat((tokens_est * COSTO_INPUT).toFixed(4)))
+        const costo_claude = parseFloat((tokens_est * 0.000003 + tokens_est * 0.000015).toFixed(6))
+        const costo_openai = parseFloat(((chars / 4 / 60) * 0.006).toFixed(6))
+        const sActuales = getStoredSaldos()
+        const sNext = {
+          ...sActuales,
+          claude_gastado_acum: parseFloat((sActuales.claude_gastado_acum + costo_claude).toFixed(6)),
+          openai_gastado_acum: parseFloat((sActuales.openai_gastado_acum + costo_openai).toFixed(6)),
+        }
+        saveSaldos(sNext)
+        setSaldos(sNext)
       }
       if (resDec.ok) {
         const d = await resDec.json()
@@ -212,24 +243,89 @@ export default function App() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <div style={seccion}>Presupuesto Claude</div>
+              <div style={seccion}>Presupuestos</div>
               <div style={card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: '#6B7280' }}>Gastado</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: barColor }}>${gastoHoy}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>Saldos disponibles</span>
+                  <button
+                    onClick={() => setEditandoSaldos(!editandoSaldos)}
+                    style={{ fontSize: 11, color: '#2D9E75', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    {editandoSaldos ? 'Cerrar' : 'Editar saldos'}
+                  </button>
+                </div>
+
+                {editandoSaldos && (
+                  <div style={{ background: '#0F1117', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Saldo actual en cada consola:</div>
+                    {[
+                      { key: 'claude_inicial', label: 'Claude — console.anthropic.com' },
+                      { key: 'openai_inicial', label: 'OpenAI — platform.openai.com' },
+                    ].map(item => (
+                      <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>{item.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: '#6B7280' }}>$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            defaultValue={saldos[item.key]}
+                            onBlur={e => {
+                              const val = parseFloat(e.target.value) || 0
+                              const next = { ...saldos, [item.key]: val, claude_gastado_acum: 0, openai_gastado_acum: 0 }
+                              saveSaldos(next)
+                              setSaldos(next)
+                            }}
+                            style={{ width: 70, padding: '4px 6px', background: '#161B27', border: '0.5px solid #1F2937', borderRadius: 6, color: '#E5E7EB', fontSize: 13, outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 10, color: '#4B5563', marginTop: 4 }}>Al guardar se resetea el contador de gasto acumulado.</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: '#6B7280' }}>Quedan</div>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: '#F9FAFB' }}>${quedan}</div>
-                  </div>
-                </div>
-                <div style={{ background: '#1F2937', borderRadius: 99, height: 8, marginBottom: 4 }}>
-                  <div style={{ width: `${pct}%`, height: 8, borderRadius: 99, background: barColor, transition: 'width .4s' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#4B5563' }}>
-                  <span>$0</span><span style={{ color: '#F59E0B' }}>⚠ $3.50</span><span style={{ color: '#EF4444' }}>✕ $4.50</span><span>$5.00</span>
-                </div>
+                )}
+
+                {[
+                  {
+                    label: 'Claude',
+                    sub: 'Anthropic · Sonnet 4.6 · análisis y decisiones',
+                    inicial: saldos.claude_inicial,
+                    gastado: saldos.claude_gastado_acum,
+                    color: '#8B5CF6',
+                  },
+                  {
+                    label: 'OpenAI',
+                    sub: 'Whisper · transcripción de audio',
+                    inicial: saldos.openai_inicial,
+                    gastado: saldos.openai_gastado_acum,
+                    color: '#10B981',
+                  },
+                ].map((item, i) => {
+                  const disponible = Math.max(item.inicial - item.gastado, 0)
+                  const pct = Math.min((item.gastado / item.inicial) * 100, 100)
+                  const barColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : item.color
+                  return (
+                    <div key={i} style={{ marginBottom: i === 0 ? 16 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#F9FAFB' }}>{item.label}</div>
+                          <div style={{ fontSize: 10, color: '#4B5563' }}>{item.sub}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: barColor }}>${disponible.toFixed(2)}</div>
+                          <div style={{ fontSize: 10, color: '#4B5563' }}>de ${item.inicial.toFixed(2)}</div>
+                        </div>
+                      </div>
+                      <div style={{ background: '#1F2937', borderRadius: 99, height: 6, marginBottom: 4 }}>
+                        <div style={{ width: `${pct}%`, height: 6, borderRadius: 99, background: barColor, transition: 'width .4s' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#4B5563' }}>
+                        <span>Gastado est.: ${item.gastado.toFixed(6)}</span>
+                        <span style={{ color: barColor }}>Disponible: ${disponible.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
 
               <div style={seccion}>Horario hoy</div>
